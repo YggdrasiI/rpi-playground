@@ -7,7 +7,7 @@
 #include "mailbox.h"
 #include "qpu.h"
 
-#define NUM_QPUS        1
+#define NUM_QPUS        12
 #define MAX_CODE_SIZE   8192
 
 static unsigned int qpu_code[MAX_CODE_SIZE];
@@ -39,7 +39,27 @@ int loadShaderCode(const char *fname, unsigned int* buffer, int len)
     return items;
 }
 
+/* Uniform value for qpu 
+ * Note: Sometimes, I've got the wrong
+ * uniform on QPU X (it uses the value from X+1) in some of the four
+ * multiplexed runs.
+ */
+unsigned int uniform_map(int i ){
+    return (unsigned int) i;
+}
+/* For test if result is ok. */
+unsigned int cpu_result(int i, int j){
+    return uniform_map(i)+ 0x1234;
+}
+// Returns zero if ok
+unsigned int cpu_result_probe(int i, int j, unsigned int qpu_result){
+    return ( cpu_result(i,j) - qpu_result );
+}
 
+/* QPU-code add on each QPU an uniform with a constant and returns it
+ * separatly by DMA.
+ * The results will be compared with a probe on the cpu.
+ */
 int main(int argc, char **argv)
 {
     if (argc < 3) {
@@ -93,7 +113,7 @@ int main(int argc, char **argv)
     unsigned vc_results = ptr + offsetof(struct memory_map, results);
     memcpy(arm_map->code, qpu_code, code_words * sizeof(unsigned int));
     for (int i=0; i < NUM_QPUS; i++) {
-        arm_map->uniforms[i][0] = uniform_val;
+        arm_map->uniforms[i][0] = uniform_map(i);//uniform_val;
         arm_map->uniforms[i][1] = vc_results + i * sizeof(unsigned) * 16;
         arm_map->msg[i][0] = vc_uniforms + i * sizeof(unsigned) * 2;
         arm_map->msg[i][1] = vc_code;
@@ -103,8 +123,15 @@ int main(int argc, char **argv)
 
     // check the results!
     for (int i=0; i < NUM_QPUS; i++) {
+        printf("QPU %2d: ", i);
+        unsigned int qpu_i0 = arm_map->results[i][0];
+        printf("word %d: %8u\n", 0, arm_map->results[i][0]);
         for (int j=0; j < 16; j++) {
-            printf("QPU %d, word %d: 0x%08x\n", i, j, arm_map->results[i][j]);
+            if( cpu_result_probe(i,j, arm_map->results[i][0] ) ){
+                printf("Error on word %d: expect: %8u  get: %8u\n",
+                        j, arm_map->results[i][j],
+                        cpu_result(i,j));
+            }
         }
     }
 

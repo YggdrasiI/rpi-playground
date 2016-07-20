@@ -3,15 +3,22 @@
 # Example of vw_setup usage to write 32 x and 32 y values
 # (stored in four registers) into (x,y) tuples.
 #
-# Note: Vertical setup for vpm write, but horizontal for
-# the vdw write. The horizontal write allows us to get an
-# offset after each tuple.
+# Note: Vertical setup for VPM write, but horizontal for
+# VDW write. The horizontal write allows us to get an
+# offset after each value, but not each block (16 values)
 #
 #############################################################
 ## Return address taken from first uniform
 .set ra_addr_out,     ra31
 mov ra_addr_out, unif
 
+#############################################################
+## Extended setup with blockmode argument. (no effect?!)
+.func my_vdw_setup_1(stride, blockmode)
+    .assert !(stride & ~0xffff) # VPM supports 16 bit stride rather than 13 as documented
+    .assert !(blockmode & ~0x1)
+    0xc0000000 | stride | blockmode << 16
+.endf
 #############################################################
 
 #############################################################
@@ -26,8 +33,8 @@ nop ; mov rb2, r0 << 8
 # Add constant to test higher order bytes
 mov rb10, 100000
 nop
-add ra1, ra1, rb10 
-add ra2, ra2, rb10 
+add ra1, ra1, rb10
+add ra2, ra2, rb10
 
 #############################################################
 ## Configure the VPM for writing
@@ -46,25 +53,22 @@ mov vw_setup, vpm_setup(1, 16, v32(0, 0))
 ## Write into the VPM.
 mov rb48, ra1 # x1
 mov rb48, ra2 # x2
-
-# Jump to second column
-mov vw_setup, vpm_setup(1, 16, v32(0, 1))
 mov rb48, rb1 # y1
 mov rb48, rb2 # y2
 
 #############################################################
 ## Geometry of VPM writing (xxxx=word):
-#       x    y
-#     ( 0) ( 1) ( 2) … (15)
-#  0| 0000 0000 **** … ****
-#( 0) 1111 1111 **** … ****
-#  …| …    …         …
-# 15| FFFF FFFF **** … ****
-# 16| 0000 0000 ****
-#( 2) 1111 1111 **** … ****
-#  …| …    …         …
-# 31| FFFF FFFF **** … ****
-# 32| **** **** …
+#
+#     ( 0) ( 1) … (15)
+#  0| 0000 **** … ****
+#( 0) 1111 **** … ****
+#  …| …           …
+# 15| FFFF **** … ****
+#  …| …    …      …
+# 48| 0000 ****
+#( 4) 1111 **** … ****
+#  …| …           …
+# 63| FFFF **** … ****
 #
 #(Block)
 
@@ -79,20 +83,25 @@ mov rb48, rb2 # y2
 # Writing of y require second setup call, see below.
 
 # 1. Configure write of x values
-mov vw_setup, vdw_setup_0(2*16, 2, dma_h32(0, 0))
+mov vw_setup, vdw_setup_0(2*16, 1, dma_h32(0, 0))
 # Read args from right to left:
 #   - Start horizontal block at (0,0)
-#   - Use 2 blocks (=8 bytes) as depth (this is the horizontal read length)
+#   - Use 1 block (=4 bytes) as depth (this is the horizontal read length)
 #   - Write 32 units. (After each unit, pointer will jump to the next line)
 
-mov vw_setup, vdw_setup_1(0)
-# No skip This leads to the 
-# following write structure: x,y,x,y,…
+mov vw_setup, my_vdw_setup_1(4, 1)
+# Skip 4 bytes after each unit. It leads to the
+# following write structure: x,_,x,_,…
 
 #############################################################
 ## Initiate DMA writes
-# Write x and y values together
+# x values
 mov vw_addr, ra_addr_out
+
+# y values.
+mov vw_setup, vdw_setup_0(2*16, 1, dma_h32(32, 0))
+add vw_addr, ra_addr_out, 4
+
 
 #############################################################
 ## End programm

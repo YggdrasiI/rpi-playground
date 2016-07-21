@@ -125,10 +125,18 @@ int main(int argc, char **argv)
     unsigned ret = execute_qpu(mb, NUM_QPUS, vc_msg, GPU_FFT_NO_FLUSH, GPU_FFT_TIMEOUT);
 
     // check the results!
+    size_t num_not_written=0;
     for (int i=0; i < 32; i++) {
+        if( arm_map->results[i][0] != 1000+i ){
         printf("%2d, word (%d, %d)\n", i,
                 arm_map->results[i][0], 
                 arm_map->results[i][1]);
+        }else{
+            num_not_written++;
+        }
+    }
+    if( num_not_written){
+        printf("%2d words wasn't changed. This could indicate wrong write setup.\n", num_not_written);
     }
 
     printf("Cleaning up.\n");

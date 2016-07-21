@@ -4,8 +4,16 @@
 # (stored in four registers) into (x,y) tuples.
 #
 # Note: Vertical setup for vpm write, but horizontal for
-# the vdw write. The horizontal write allows us to get an
-# offset after each tuple.
+#   the vdw write. The horizontal write allows us to get an
+#   offset after each tuple.
+#
+# Note: This aproach (Vertical vpm setup) is good to set
+#   an arbitary stride after each (x,y) tuple, but you can only
+#   write out the four blocks (64 words) of one column.
+#   It is not possible to push multiple columns (i.e. provided from 
+#   different QPUs) in one DMA write command.
+#   Lock into xy_tuple_write.no_stride.asm for an approach 
+#   which pushes more DMA data in one call.
 #
 #############################################################
 ## Return address taken from first uniform
@@ -36,8 +44,8 @@ add ra2, ra2, rb10
 mov vw_setup, vpm_setup(1, 16, v32(0, 0))
 # Read args from right to left:
 #   - Start vertical block at (0,0) and use 4 bytes width
-#   - Jump 16. blocks to right after writing of one block.
-#     This block would be below the current block!
+#   - Jump 16 blocks to right after writing of one block.
+#     This block would be below the current block.
 #   - First argument affects bits which are marked as "unused"
 #     in the documentation. Meaning?!
 
@@ -82,17 +90,20 @@ mov rb48, rb2 # y2
 mov vw_setup, vdw_setup_0(2*16, 2, dma_h32(0, 0))
 # Read args from right to left:
 #   - Start horizontal block at (0,0)
-#   - Use 2 blocks (=8 bytes) as depth (this is the horizontal read length)
-#   - Write 32 units. (After each unit, pointer will jump to the next line)
+#   - Use 2 words as depth (this is the horizontal read length).
+#   - Write 32 units. (After each unit, pointer will jump to the next line).
 
 mov vw_setup, vdw_setup_1(0)
 # No skip This leads to the 
 # following write structure: x,y,x,y,…
 
 #############################################################
-## Initiate DMA writes
+## Initiate DMA write
 # Write x and y values together
 mov vw_addr, ra_addr_out
+
+# Wait for the DMA to complete
+or rb39, rb50, ra39
 
 #############################################################
 ## End programm

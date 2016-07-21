@@ -43,8 +43,8 @@ add ra2, ra2, rb10
 mov vw_setup, vpm_setup(1, 16, v32(0, 0))
 # Read args from right to left:
 #   - Start vertical block at (0,0) and use 4 bytes width
-#   - Jump 16. blocks to right after writing of one block.
-#     This block would be below the current block!
+#   - Jump 16 blocks to right after writing of one block.
+#     This block would be below the current block.
 #   - First argument affects bits which are marked as "unused"
 #     in the documentation. Meaning?!
 
@@ -86,8 +86,8 @@ mov rb48, rb2 # y2
 mov vw_setup, vdw_setup_0(2*16, 1, dma_h32(0, 0))
 # Read args from right to left:
 #   - Start horizontal block at (0,0)
-#   - Use 1 block (=4 bytes) as depth (this is the horizontal read length)
-#   - Write 32 units. (After each unit, pointer will jump to the next line)
+#   - Use 1 block (=4 bytes) as depth (this is the horizontal read length).
+#   - Write 32 units. (After each unit, pointer will jump to the next line).
 
 mov vw_setup, my_vdw_setup_1(4, 1)
 # Skip 4 bytes after each unit. It leads to the

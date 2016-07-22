@@ -15,58 +15,6 @@
 mov ra_addr_out, unif
 
 #############################################################
-## Interlaving of x and y values
-#
-#      (Indicies of x reg)   (Indicies of y reg) 
-#  In: 0123 4567 89AB CDEF   0123 4567 89AB CDEF
-# Out: 0011 2233 4455 6677   8899 AABB CCDD EEFF
-#
-# Notes:
-#  - In and out registers could be the same but tmp registers
-#    should distinct from both groups.
-#  - It could be interpreted as transposing of a 2x16 matrix, too.
-#
-#  - tmp2 must be in register file A.
-.macro interleave, x_in, y_in, xy_first_halve, xy_second_halve, tmp2, tmp1
-
-#   .local
-    .lset acc_mask, r0
-    .lset acc_x, r1 # Full rotation requires accumulator
-    .lset acc_y, r2
-    mov acc_x, x_in; mov tmp1, 0
-    mov acc_y, y_in; mov tmp2, 0
-
-    # Lower halve i => 2*i
-    sub.setf acc_mask, elem_num, 0
-    .rep i, 8
-        nop; mov.ifz tmp1, acc_x >> i
-        nop; mov.ifz tmp2, acc_y >> i
-
-        # Shift zero two position forward.
-        sub.setf acc_mask, acc_mask, 2;
-    .endr
-    # Join both parts. Sliced rotation should be ok
-    # because of eight zero entries.
-    mov.rot 1, acc_mask, tmp2
-    add xy_first_halve, tmp1, acc_mask
-
-    # Upper halve i => 2*(i-8)
-    sub.setf acc_mask, elem_num, 0
-    .rep i, 8
-        nop; mov.ifz tmp1, acc_x >> i-8
-        nop; mov.ifz tmp2, acc_y >> i-8
-
-        # Shift zero two position forward.
-        sub.setf acc_mask, acc_mask, 2;
-    .endr
-    mov.rot 1, acc_mask, tmp2
-    add xy_second_halve, tmp1, acc_mask
-
-#  .endloc
-.endm
-#############################################################
-
-#############################################################
 ## Example content to write
 mov ra1, elem_num
 add ra2, elem_num, 16
@@ -98,7 +46,7 @@ interleave  ra2, rb2, ra2, rb2, ra10, rb10
 mov vw_setup, vpm_setup(1, 1, h32(0, 0))
 # Read args from right to left:
 #   - Start horizontal 32 bit block at (0,0)
-#   - Jump 1 block to right after writing of one block. (?)
+#   - Jump 1 block to right after writing of one block.
 #     This block would be below the current block.
 #   - First argument affects bits which are marked as "unused"
 #     in the documentation. Meaning?!
@@ -144,7 +92,7 @@ mov rb48, rb2 # xy2 upper
 #
 # Writing of y require second setup call, see below.
 
-# 1. Configure write of x values
+# 1. Configure write of xy tuples
 mov vw_setup, vdw_setup_0(4, 16, dma_h32(0, 0))
 # Read args from right to left:
 #   - Start horizontal block at (0,0)

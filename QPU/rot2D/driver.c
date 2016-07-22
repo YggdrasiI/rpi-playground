@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stddef.h>
 #include <sys/time.h>
+#include <math.h>
+#include <assert.h>
 
 #include "mailbox.h"
 #include "qpu.h"
@@ -10,17 +12,28 @@
 #define NUM_QPUS        1
 #define MAX_CODE_SIZE   8192
 
+// Uniform stores:
+// 1. NumQPU()
+// 2. Number of elements
+// 3. sin of rotation angle
+// 4. cos of rotation angle
+// 5. Input address of x vector
+// 6. Input address of y vector
+// 7. Output address of x' vector
+// 8. Output address of y' vector
+#define NUM_UNIFORMS    8
+
+//Number of processed (x,y) pairs. Should be a multiple of 16.
+//#define NUM_ELEMENTS    (16*12) 
+#define NUM_ELEMENTS    20
+
 static unsigned int qpu_code[MAX_CODE_SIZE];
 
 struct memory_map {
     unsigned int code[MAX_CODE_SIZE];
-    unsigned int uniforms[NUM_QPUS][2];     // 2 parameters per QPU
-                                            // first address is the input value
-                                            // for the program to add to
-                                            // second is the address of the
-                                            // result buffer
+    unsigned int uniforms[NUM_QPUS][NUM_UNIFORMS];
     unsigned int msg[NUM_QPUS][2];
-    unsigned int results[NUM_QPUS][16];     // result buffer for the QPU to
+    unsigned int results[2][NUM_ELEMENTS];  // result buffer for the QPU to
                                             // write into
 };
 
@@ -39,6 +52,65 @@ int loadShaderCode(const char *fname, unsigned int* buffer, int len)
     return items;
 }
 
+void init_input(size_t n, float *x, float *y){
+    // Memory structure xxxxx…, yyyyy…
+    float a = 0.0f;
+    float b = 5.0f;
+    while( n > 0 ){
+        n--;
+        *x++ = a;
+        *y++ = b;
+        a += 0.1f;
+        b -= 0.1f;
+    }
+}
+
+void print_output(size_t n, float *x_out, float *y_out){
+    // Memory structure xxxxx…, yyyyy…
+ 
+    // Regen input to compare.
+    float a[n]; float b[n];
+    init_input(n, a, b);
+    float *x_in = a; float *y_in = b;
+
+    while( n > 0 ){
+        n--;
+        printf("(%4.4f,%4.4f) => (%4.4f,%4.4f)\t\t(%d,%d)\n",
+                *x_in, *y_in, *x_out, *y_out, *((int*)x_out), *((int*)y_out));
+        x_in++; y_in++; x_out++; y_out++;
+    }
+}
+
+void init_input_tuples(size_t n, float *xy){
+    // Memory structure xy,xy,xy,…
+    float a[n]; float b[n];
+    init_input(n, a, b);
+    float *x_in = a; float *y_in = b;
+    
+    while( n > 0 ){
+        n--;
+        *xy++ = *x_in++;
+        *xy++ = *y_in++;
+    }
+}
+
+void print_output_tuple(size_t n, float *xy_out){
+    // Memory structure xy,xy,xy,…
+    
+    // Regen input to compare.
+    float a[n]; float b[n];
+    init_input(n, a, b);
+    size_t m = n;
+
+    while( m > 0 ){
+        m--;
+        a[m] = xy_out[2*m];
+        b[m] = xy_out[2*m+1];
+    }
+    print_output(n, a, b);
+}
+
+
 
 int main(int argc, char **argv)
 {
@@ -46,6 +118,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: %s <code .bin> <val>\n", argv[0]);
         return 0;
     }
+
+    const double rotation_angle = M_PI;
+    const float rot_sin = sin(rotation_angle);
+    const float rot_cos = cos(rotation_angle);
+
     int code_words = loadShaderCode(argv[1], qpu_code, MAX_CODE_SIZE);
 
     printf("Loaded %d bytes of code from %s ...\n", code_words * sizeof(unsigned), argv[1]);
@@ -83,30 +160,43 @@ int main(int argc, char **argv)
 
     unsigned ptr = mem_lock(mb, handle);
     void *arm_ptr = mapmem(BUS_TO_PHYS(ptr + host.mem_map), size);
-    // assert arm_ptr ...
 
     struct memory_map *arm_map = (struct memory_map *)arm_ptr;
     memset(arm_map, 0x0, sizeof(struct memory_map));
+
+    //init_input( NUM_ELEMENTS, (float*)arm_map->results,
+    //        ((float*)arm_map->results)+NUM_ELEMENTS);
+    init_input_tuples( NUM_ELEMENTS, (float*)arm_map->results);
+
     unsigned vc_uniforms = ptr + offsetof(struct memory_map, uniforms);
     unsigned vc_code = ptr + offsetof(struct memory_map, code);
     unsigned vc_msg = ptr + offsetof(struct memory_map, msg);
     unsigned vc_results = ptr + offsetof(struct memory_map, results);
     memcpy(arm_map->code, qpu_code, code_words * sizeof(unsigned int));
     for (int i=0; i < NUM_QPUS; i++) {
-        arm_map->uniforms[i][0] = uniform_val;
-        arm_map->uniforms[i][1] = vc_results + i * sizeof(unsigned) * 16;
-        arm_map->msg[i][0] = vc_uniforms + i * sizeof(unsigned) * 2;
+        int uni_arg = 0;
+        arm_map->uniforms[i][uni_arg++] = NUM_QPUS;
+        arm_map->uniforms[i][uni_arg++] = *((unsigned int*)&rot_sin);
+        arm_map->uniforms[i][uni_arg++] = *((unsigned int*)&rot_cos);
+        arm_map->uniforms[i][uni_arg++] = NUM_ELEMENTS;
+        // Use output positions as input, too.
+        arm_map->uniforms[i][uni_arg++] = vc_results + i * 16 * sizeof(unsigned);
+        arm_map->uniforms[i][uni_arg++] = vc_results + (NUM_ELEMENTS + i * 16 )* sizeof(unsigned);
+        // Output pointers only for i=0 used
+        arm_map->uniforms[i][uni_arg++] = vc_results + i * 16 * sizeof(unsigned);
+        arm_map->uniforms[i][uni_arg++] = vc_results + (NUM_ELEMENTS + i * 16 )* sizeof(unsigned);
+        assert(uni_arg == NUM_UNIFORMS);
+
+        arm_map->msg[i][0] = vc_uniforms + i * NUM_UNIFORMS * sizeof(unsigned);
         arm_map->msg[i][1] = vc_code;
     }
 
     unsigned ret = execute_qpu(mb, NUM_QPUS, vc_msg, GPU_FFT_NO_FLUSH, GPU_FFT_TIMEOUT);
 
     // check the results!
-    for (int i=0; i < NUM_QPUS; i++) {
-        for (int j=0; j < 16; j++) {
-            printf("QPU %d, word %d: 0x%08x\n", i, j, arm_map->results[i][j]);
-        }
-    }
+    //print_output( NUM_ELEMENTS, (float*)arm_map->results,
+    //        ((float*)arm_map->results)+NUM_ELEMENTS);
+    print_output_tuple( NUM_ELEMENTS, (float*)arm_map->results);
 
     printf("Cleaning up.\n");
     unmapmem(arm_ptr, size);

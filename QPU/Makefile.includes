@@ -1,0 +1,9 @@
+#	This makefile will be included in the subfolders.
+#	Use it for global variables, etc
+#	
+EXTRA_SOURCES = /opt/vc/src/hello_pi/hello_fft/mailbox.c
+EXTRA_INCLUDES = -I/opt/vc/src/hello_pi/hello_fft
+FLAGS = -ldl -lm
+VC4 = vc4asm 
+VC4_INCLUDES=$(wildcard ../includes/*.qinc)
+

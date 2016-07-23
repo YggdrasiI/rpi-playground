@@ -1,1 +1,7 @@
 QPU/test1/*
+**/.*.swp
+**/.*.swo
+**/*.bin
+**/*.hex
+# result of m4 parser
+**/*.m4.asm

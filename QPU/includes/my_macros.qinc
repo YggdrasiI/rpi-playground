@@ -3,7 +3,8 @@
 #############################################################
 
 .macro exit, flag
-	mov interrupt, flag
+	#mov interrupt, flag # mov problematic?!
+	or rb38, ra39, flag  # No, it seems that we must read ra39
 	nop; nop; thrend
 	nop 
 	nop 
@@ -27,24 +28,71 @@
 .endm
 
 #############################################################
-##############################################################################
-## VPM pointers
-
-.macro inst_vpm, in_inst, out_0, out_1, out_2, out_3
-    mov r0, vpm_setup(1, 1, v32( 0,0))
-    mov r1, vpm_setup(1, 1, v32(16,0)) - vpm_setup(1, 1, v32(0,0))
-    mov r2, vpm_setup(1, 1, v32( 0,2)) - vpm_setup(1, 1, v32(0,0))
-
+## Variable VPM write setup
+#
+# The setup of the VPM depends from the QPU instance.
+# in_inst - QPU id
+# out_0   - Start cmd for first round (with four VPM writes)
+# out_1   - Start cmd for second round
+#
+# VPM 1st round      2nd round
+#  0  q1        4N+1  q1
+#     q2        4N+2  q2
+#     q3        4N+3  q3
+#     …               … 
+#  N  qN        5N    qN
+#N+1  q1        5N+1  q1 
+#N+2  q2        5N+2  q2
+# …   …               … 
+# 4N  qN        8N    qN
+#
+# 4N<=32        8N<=32
+#
+.macro vpm_qsetup_h_a, in_num_inst, in_inst, out_0, out_1
+    # Difference in r1 required to set write stride on each QPU.
+    # Difference in r2 is required to set start point for each QPU.
+    #mov out_0, vpm_setup(1, 1, h32( 0,0))
+    mov r0, vpm_setup(1, 1, h32( 0,0))
+    mov r1, vpm_setup(1, 2, h32(0,0)) - vpm_setup(1, 1, h32(0,0))
+    mov r2, vpm_setup(1, 1, h32(1,0)) - vpm_setup(1, 1, h32(0,0))
+    
+    # We need 'r0 + (N-1)*r1 + n*r2'. Backup r1 in out_0
+    # to substract it after 'r0+N*r1+n*r2' operation
+    mov out_0, r1; mul24 r1, r1, in_num_inst
     nop; mul24 r2, r2, in_inst
+    add r1, r1, r2
+    sub r1, r1, out_0
 
-    add out_0, r0, r2; v8adds r0, r0, r1
-    add out_1, r0, r2; v8adds r0, r0, r1
-    add out_2, r0, r2; v8adds r0, r0, r1
-    add out_3, r0, r2
+    mov out_1, vpm_setup(1, 1, h32(32,0))
+    add out_0, r0, r1
+    add out_1, out_1, r1
+.endm                                                                                    
+
+#############################################################
+## Variable VDM write setup (matches to vpm_qsetup_h_a)
+#
+# Setup to write in both rounds 
+# r * number_of_used_QPUs * 16 words.
+# r is the number of registers, each used QPU is set per round.
+#
+# Note: Stride setup is not contained here
+#       ( mov vw_setup, vdw_setup_1(0) ).
+.macro vdm_qsetup_h_a, in_num_inst, const_r, out_0, out_1
+	mov r0, vdw_setup_0(1, 16, dma_h32(0, 0))
+	mov r1, vdw_setup_0(1, 16, dma_h32(32, 0))
+	mov r2, vdw_setup_0(const_r, 16, dma_h32(0, 0)) - vdw_setup_0(1, 16, dma_h32(0, 0))
+
+	mul24 r2, r2, in_num_inst
+	add out_0, r0, r2
+	add out_1, r1, r2
+	mov out_0, vdw_setup_0(1, 16, dma_h32(0, 0))
+	mov out_1, vdw_setup_0(1, 16, dma_h32(32, 0))
 .endm                                                                                    
   
 #############################################################
-#############################################################
+.macro dma_wait
+	or rb39, rb50, ra39
+.endm                                                                                    
 #############################################################
 #############################################################
 #############################################################

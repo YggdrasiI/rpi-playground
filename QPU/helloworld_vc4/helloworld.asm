@@ -33,8 +33,5 @@ or rb50, ra32, 0
 # Wait for the DMA to complete
 or rb39, rb50, ra39
 
-# trigger a host interrupt (writing rb38) to stop the program
-or rb38, ra39, ra39
-
-# Postfix interruption
+# Trigger a host interrupt (writing rb38) to stop the program
 exit rb_first_uniform

@@ -9,7 +9,7 @@
 #include "mailbox.h"
 #include "qpu.h"
 
-#define NUM_QPUS        1
+#define NUM_QPUS        2
 #define MAX_CODE_SIZE   8192
 
 // Uniform stores:
@@ -25,7 +25,7 @@
 
 //Number of processed (x,y) pairs. Should be a multiple of 16.
 //#define NUM_ELEMENTS    (16*12) 
-#define NUM_ELEMENTS    20
+#define NUM_ELEMENTS    16*16
 
 static unsigned int qpu_code[MAX_CODE_SIZE];
 
@@ -65,19 +65,33 @@ void init_input(size_t n, float *x, float *y){
     }
 }
 
-void print_output(size_t n, float *x_out, float *y_out){
+void print_output(size_t n, float *x_out, float *y_out, int b_only_changes){
     // Memory structure xxxxx…, yyyyy…
  
     // Regen input to compare.
     float a[n]; float b[n];
     init_input(n, a, b);
     float *x_in = a; float *y_in = b;
+    size_t num_unchanged_lines = 0;
+    size_t block = 0;
 
     while( n > 0 ){
         n--;
-        printf("(%4.4f,%4.4f) => (%4.4f,%4.4f)\t\t(%d,%d)\n",
-                *x_in, *y_in, *x_out, *y_out, *((int*)x_out), *((int*)y_out));
+        if( b_only_changes && *x_in == *x_out && *y_in == *y_out ){
+            num_unchanged_lines++;
+        }else{
+            printf("%2u| (%4.4f,%4.4f) => (%4.4f,%4.4f)\t\t(%d,%d)\n",
+                    block,
+                    *x_in, *y_in, *x_out, *y_out,
+                    *((int*)x_out), *((int*)y_out));
+        }
+        if( n%8 == 0){
+            block++;
+        }
         x_in++; y_in++; x_out++; y_out++;
+    }
+    if( num_unchanged_lines ){
+        printf("%2d words wasn't changed and not displayed\n", num_unchanged_lines);
     }
 }
 
@@ -94,7 +108,7 @@ void init_input_tuples(size_t n, float *xy){
     }
 }
 
-void print_output_tuple(size_t n, float *xy_out){
+void print_output_tuple(size_t n, float *xy_out, int b_only_changes){
     // Memory structure xy,xy,xy,…
     
     // Regen input to compare.
@@ -107,7 +121,7 @@ void print_output_tuple(size_t n, float *xy_out){
         a[m] = xy_out[2*m];
         b[m] = xy_out[2*m+1];
     }
-    print_output(n, a, b);
+    print_output(n, a, b, b_only_changes);
 }
 
 
@@ -195,8 +209,8 @@ int main(int argc, char **argv)
 
     // check the results!
     //print_output( NUM_ELEMENTS, (float*)arm_map->results,
-    //        ((float*)arm_map->results)+NUM_ELEMENTS);
-    print_output_tuple( NUM_ELEMENTS, (float*)arm_map->results);
+    //        ((float*)arm_map->results)+NUM_ELEMENTS, 1);
+    print_output_tuple( NUM_ELEMENTS, (float*)arm_map->results, 1);
 
     printf("Cleaning up.\n");
     unmapmem(arm_ptr, size);

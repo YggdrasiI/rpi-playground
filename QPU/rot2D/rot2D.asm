@@ -1,10 +1,40 @@
 # Rotation of (x,y)-vectors by fixed angle (for vc4asm compiler)
 
 #############################################################
-.set ra_addr_x,         ra3
-.set rb_addr_y,         rb3
+# For Input
+.set ra_x1,         ra3
+.set rb_y1,         rb3
+.set ra_x2,         ra4
+.set rb_y2,         rb4
+
+# Working registers
+.set ra_tmp0,         ra10
+.set rb_tmp0,         rb10
+.set ra_tmp1,         ra11
+.set rb_tmp1,         rb11
+.set ra_tmp2,         ra12
+.set rb_tmp2,         rb12
+
+# Setup
 .set ra_load_idx,       ra5
-.set Stride,            0x10
+.set rb_stride,         rb5
+.set ra_instQPU,        ra24 # always = num_qpu?!
+
+.set ra_vpm_setup0,     ra26
+.set rb_vpm_setup1,     rb26
+.set ra_vdm_setup0,     ra26
+.set rb_vdm_setup1,     rb25
+
+
+#############################################################
+# Uniforms
+.set ra_numQPU,         ra29
+.set rb_N,              rb29
+.set ra_sin,            ra28
+.set rb_cos,            rb28
+.set ra_addr_in,        ra27
+.set rb_addr_out,       rb27
+
 
 #############################################################
 ## Pushes two texture request commands.
@@ -36,13 +66,6 @@
 
 
 #############################################################
-.set ra_numQPU,         ra29
-.set rb_N,              rb29
-.set ra_sin,            ra28
-.set rb_cos,            rb28
-.set ra_addr_in,        ra27
-.set rb_addr_out,       rb27
-#############################################################
 
 #############################################################
 ## Read uniforms
@@ -69,58 +92,74 @@ mov -, unif
 #############################################################
 ## Setup
 
-# Start at element 0 and set read addresses to p, p+8, …, p+16*8
-# This read x values with stride of 4 bytes (=y).
-mov ra_load_idx, 0
-mul24 r0, elem_num, 8
+# Use one qpu instance for test.
+mov ra_instQPU, qpu_num
+shl rb_stride, ra_numQPU, 4 # 16 * NumQPU
+# Start at block index 0+16*instQPU and set
+# read addresses to p, p+8, …, p+16*8
+# (The first y is at p+4.)
+shl ra_load_idx, ra_instQPU, 4
+shl r0, elem_num, 3
 add ra_addr_in, ra_addr_in, r0
-nop
+
+# Create VPM setup values. The vertex memory is splited into
+# two ranges with 32 rows. The second area can be filled with
+# data while the first will be DMA tranfered.
+vpm_qsetup_h_a ra_numQPU, ra_instQPU, ra_vpm_setup0, rb_vpm_setup1
+vdm_qsetup_h_a ra_numQPU, 4, ra_vdm_setup0, rb_vdm_setup1
+
+# No stride in whole program
+mov vw_setup, vdw_setup_1(0)
 
 #############################################################
 ## Test Texture read
 
-# Load x values in ra1 and y values in rb1.
-# (This separates the tuple arguments.)
-#load_lin Stride, r:1f
-#:1
-#mov ra1, r0; mov rb1, r1
+# Load x values in ra_x[1|2] and y values in rb_y[1|2].
+# (This separates the tuple arguments. And 2*2 movs are redundant)
+load_lin rb_stride, r:1f
+:1
+mov ra_x1, r0;
+mov rb_y1, r1
 
-read_lin Stride
-nop;        ldtmu0
-mov r0, r4; ldtmu0                                                                    
-mov r1, r4                                                                            
-mov ra1, r0; mov rb1, r1
+load_lin rb_stride, r:1f
+:1
+mov ra_x2, r0;
+mov rb_y2, r1
 
-# Made some calucations
+
+# Made some calucations to negate content of four registers.
+mov r0, -1.0; mov r1, ra_x1
+mov r2, ra_x2
+
+fsub ra_x1, ra_x1, r1 
+fsub ra_x2, ra_x2, r2 
+fsub ra_x1, ra_x1, r1; fmul rb_y1, rb_y1, r0
+fsub ra_x2, ra_x2, r2; fmul rb_y2, rb_y2, r0
 nop
-fsub ra1, ra1, r0 
-mov r2, -1.0
-fsub ra1, ra1, r0; fmul rb1, rb1, r2
-nop;
 
 # Interleave x and y values
-interleave ra1, rb1, ra1, rb1, ra10, rb10
+interleave ra_x1, rb_y1, ra_x1, rb_y1, ra_tmp0, rb_tmp0
+interleave ra_x2, rb_y2, ra_x2, rb_y2, ra_tmp0, rb_tmp0
 
 #############################################################
 ## Configure the VPM for writing
 #
-mov vw_setup, vpm_setup(1, 1, h32(0, 0))
+#mov vw_setup, vpm_setup(1, 1, h32(0, 0))
+mov vw_setup, rb_vpm_setup1
 
 #############################################################
 ## Write into the VPM.
 
-mov rb48, ra1
-mov rb48, rb1
-#mov rb48, elem_num
-#mov rb48, elem_num
-#mov rb48, ra1
-#mov rb48, r1 << 2
+mov rb48, ra_x1
+mov rb48, rb_y1
+mov rb48, ra_x2
+mov rb48, rb_y2
 
 #############################################################
 ## Setup the push of the VDW (virtual DMA writer).
 
-mov vw_setup, vdw_setup_0(2, 16, dma_h32(0, 0)) # num_units, width, geometry
-mov vw_setup, vdw_setup_1(0) # No stride
+mov vw_setup, rb_vdm_setup1
+#mov vw_setup, vdw_setup_1(0) # No stride
 
 #############################################################
 ## Initiate DMA write

@@ -2,7 +2,8 @@
 
 #############################################################
 .macro exit, flag
-	mov interrupt, flag
+	#mov interrupt, flag # problematic?!
+	or interrupt, ra39, flag 
 	nop; nop; thrend
 	nop 
 	nop 
@@ -19,19 +20,21 @@ mov rb_first_uniform, unif
 ldi ra1, 0x1234
 
 # Configure the VPM for writing
-ldi rb49, 0xa00
+# See vc4asm documentation and test_vpm_write for more details.
+mov vw_setup, vpm_setup(1, 16, v32(0, 0))
 
 # Write sum of uniform and constant into the VPM.
-add rb48, ra1, rb_first_uniform
+add vpm, ra1, rb_first_uniform
 
 ## move 16 words (1 vector) back to the host (DMA)
-ldi rb49, 0x88010000
+mov vw_setup, vdw_setup_0(1, 16, dma_v32(0, 0))
+mov vw_setup, vdw_setup_1(0) # stride
 
 ## initiate the DMA (the next uniform - ra32 - is the host address to write to))
-or rb50, ra32, 0
+mov vw_addr, unif
 
 # Wait for the DMA to complete
-or rb39, rb50, ra39
+read vw_wait
 
 # Trigger a host interrupt (writing rb38) to stop the program
 exit rb_first_uniform

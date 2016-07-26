@@ -1,19 +1,25 @@
 include ../Makefile.includes
 PROJECT=dma_speed
-#ASM = loop_dma_write.asm
-ASM = loop_vdm_and_dma_write.asm
+ASM1 = loop_dma_write.asm
+ASM2 = loop_vdm_and_dma_write.asm
+ASM = $(ASM1) $(ASM2)
 
-$(PROJECT): driver.c qpu.c $(PROJECT).bin
+$(PROJECT): driver.c qpu.c $(ASM:asm=bin)
 	g++ -g -O3 -o $(PROJECT) qpu.c driver.c $(EXTRA_SOURCES) $(EXTRA_INCLUDES) $(FLAGS)
 
-$(PROJECT).bin: $(ASM) $(VC4_INCLUDES)
+%.bin: %.asm $(VC4_INCLUDES)
 	$(VC4) -V -o $@ $(VC4_INCLUDES) $<
 
-$(PROJECT).hex: $(ASM)
+%.hex: %.asm $(VC4_INCLUDES)
+	@#$(VC4) -V -C $@ $(VC4_INCLUDES) $<
 	$(VC4) -V -C $@ $(VC4_INCLUDES) $<
 
 clean:
-	rm -f $(PROJECT).bin $(PROJECT).hex $(PROJECT)
+	rm -f $(ASM:asm=hex)
+	rm -f $(ASM:asm=bin) $(PROJECT)
 
 run:
-	sudo ./$(PROJECT) $(PROJECT).bin
+	@echo "DMA write loop:"
+	sudo ./$(PROJECT) $(ASM1:asm=bin)
+	@echo "\nVPM+DMA write loop:"
+	sudo ./$(PROJECT) $(ASM2:asm=bin)

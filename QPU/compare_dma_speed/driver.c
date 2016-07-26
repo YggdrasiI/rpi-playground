@@ -20,8 +20,18 @@
 #define NUM_QPUS        1
 #define MAX_CODE_SIZE   8192
 
-#define N  (64 * 16) // multiple of 16
-#define M (1000000 * N) // Nummer of DMA transfered words.
+/* Allocated space for result of DMA transfers.
+ * Multiple of 16 and at least enough for one full VPM transfer.
+ */
+#define N  (64 * 16)
+/* Number of DMA transfered words at all.
+ */
+#define M (10000 * N)
+
+#define TRANSFER_DATA(M) ((double)M * sizeof(int) / 1E6)
+#define TRANSFER_RATE(M, TIMEVAL) ( \
+        (TRANSFER_DATA(M)) / (TIMEVAL.tv_sec * 1.0 + TIMEVAL.tv_usec * 1E-6) \
+        )
 
 static unsigned int qpu_code[MAX_CODE_SIZE];
 
@@ -54,13 +64,9 @@ int loadShaderCode(const char *fname, unsigned int* buffer, int len)
 
 int main(int argc, char **argv)
 {
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s <code .bin> <val>\n", argv[0]);
-        return 0;
-    }
-
     //Timestamps
     timeval tvStart, tvEnd, tvDiff[3];
+    unsigned units[3] = {1, 8, 32};
     unsigned ret[3] = {-1, -1, -1};
 
     int code_words = loadShaderCode(argv[1], qpu_code, MAX_CODE_SIZE);
@@ -110,35 +116,30 @@ int main(int argc, char **argv)
     // First run. Write one unit (16 words) in each dma call.
     for (int i=0; i < NUM_QPUS; i++) {
         arm_map->uniforms[i][0] = M;
-        arm_map->uniforms[i][1] = 1;
+        arm_map->uniforms[i][1] = units[0];
         arm_map->uniforms[i][2] = vc_results + i * sizeof(unsigned) * 16;
         arm_map->msg[i][0] = vc_uniforms + i * sizeof(unsigned) * 2;
         arm_map->msg[i][1] = vc_code;
     }
 
-    gettimeofday(&tvStart, NULL);
-    ret[0] = execute_qpu(mb, NUM_QPUS, vc_msg, GPU_FFT_NO_FLUSH, 10*GPU_FFT_TIMEOUT);
-    gettimeofday(&tvEnd, NULL);
-    timersub(&tvEnd, &tvStart, &tvDiff[0]);
+    for ( int j=0; j<3 ; j++){
+        for (int i=0; i < NUM_QPUS; i++) {
+            arm_map->uniforms[i][1] = units[j];
+        }
 
+        gettimeofday(&tvStart, NULL);
+        ret[j] = execute_qpu(mb, NUM_QPUS, vc_msg, GPU_FFT_NO_FLUSH, 15*GPU_FFT_TIMEOUT);
+        gettimeofday(&tvEnd, NULL);
+        timersub(&tvEnd, &tvStart, &tvDiff[j]);
 
-    // Second run. Write 8 units in each dma call but made less DMA calls.
-    for (int i=0; i < NUM_QPUS; i++) {
-        arm_map->uniforms[i][1] = 8;
+        // Debugging, check results.
+        size_t num_expected_result_match = 0;
+        for (int i=0; i < N; i++) {
+            if( arm_map->results[0][i] == i%(16*units[j]) ) ++num_expected_result_match;
+        }
+        printf("Run(%2u) Transfered data match on %d of %d positions.\n",
+                units[j], num_expected_result_match, N);
     }
-    gettimeofday(&tvStart, NULL);
-    ret[1] = execute_qpu(mb, NUM_QPUS, vc_msg, GPU_FFT_NO_FLUSH, 10*GPU_FFT_TIMEOUT);
-    gettimeofday(&tvEnd, NULL);
-    timersub(&tvEnd, &tvStart, &tvDiff[1]);
-    
-    // Third run. Write whole VPM buffer (32 units) in one DMA call.
-    for (int i=0; i < NUM_QPUS; i++) {
-        arm_map->uniforms[i][1] = 32;
-    }
-    gettimeofday(&tvStart, NULL);
-    ret[2] = execute_qpu(mb, NUM_QPUS, vc_msg, GPU_FFT_NO_FLUSH, 10*GPU_FFT_TIMEOUT);
-    gettimeofday(&tvEnd, NULL);
-    timersub(&tvEnd, &tvStart, &tvDiff[2]);
 
     // Check the results
     if( N < 130 ){
@@ -146,15 +147,21 @@ int main(int argc, char **argv)
             printf("word %d: 0x%08x\n", i,  arm_map->results[0][i]);
         }
     }else{
-        for (int i=0; i < 32; i++) {
-            printf("word %d: %08i\n", i, (int) arm_map->results[0][i]);
+        for (int i=0; i < 8; i++) {
+            printf("word %d: 0x%08x\n", i, (int) arm_map->results[0][i]);
         }
+        printf("[...]\n");
+        printf("word %d: 0x%08x\n", N-1, (int) arm_map->results[0][N-1]);
     }
 
-    printf("Exit flags: %u\t%u\t%u\n", ret[0], ret[1], ret[2]);
-    printf("Time: %ld.%06lds\n", tvDiff[0].tv_sec, tvDiff[0].tv_usec);
-    printf("Time: %ld.%06lds\n", tvDiff[1].tv_sec, tvDiff[1].tv_usec);
-    printf("Time: %ld.%06lds\n", tvDiff[2].tv_sec, tvDiff[2].tv_usec);
+    printf("\nExit flags: %u %u %u\t\tTransfered data: %4.3f MB\n",
+            ret[0], ret[1], ret[2], TRANSFER_DATA(M));
+    for( int i=0; i<3; i++){
+    printf("Time(%2d): %ld.%06lds\t\tRate %4.3f MB/s\n",
+            units[i], tvDiff[i].tv_sec, tvDiff[i].tv_usec,
+            TRANSFER_RATE(M, tvDiff[i])
+            );
+    }
 
     printf("Cleaning up.\n");
     unmapmem(arm_ptr, size);

@@ -74,8 +74,8 @@ mov rb48, rb2 # xy2 upper
 #( 2) 0011 … 6677 |  xy2 lower
 # 10| 0011 … 6677 |
 # 11| 0011 … 6677 |
-# 12| 8899 … EEFF |  xy2 upper
-#( 3) 8899 … EEFF |
+# 12| 8899 … EEFF |
+#( 3) 8899 … EEFF |  xy2 upper
 # 14| 8899 … EEFF |
 # 15| 8899 … EEFF |
 #  …| …    … 
@@ -97,7 +97,7 @@ mov vw_setup, vdw_setup_0(4, 16, dma_h32(0, 0))
 # Read args from right to left:
 #   - Start horizontal block at (0,0)
 #   - Use all 16 words of the row as depth (this is the horizontal read length).
-#   - Write 4 units/block. (After each unit, pointer will jump to the next line).
+#   - Write 4 units/blocks. (After each unit, pointer will jump to the next line).
 
 mov vw_setup, vdw_setup_1(0)
 # Use no stride

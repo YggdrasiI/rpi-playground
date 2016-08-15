@@ -1,6 +1,5 @@
-/* Test code to understand the details of
- * the brr and bra commands and
- * how to use flags with .setf
+/* Use four QPU to write NUM_QPU * 16 words into the VPM
+ * and flush it sychronisized by QPU 0.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,14 +10,14 @@
 #include "mailbox.h"
 #include "qpu.h"
 
-#define NUM_QPUS        1
+#define NUM_QPUS        6
 #define MAX_CODE_SIZE   8192
 
 static unsigned int qpu_code[MAX_CODE_SIZE];
 
 struct memory_map {
     unsigned int code[MAX_CODE_SIZE];
-    unsigned int uniforms[NUM_QPUS][2];     // 2 parameters per QPU
+    unsigned int uniforms[NUM_QPUS][3];     // 2 parameters per QPU
                                             // first address is the input value
                                             // for the program to add to
                                             // second is the address of the
@@ -105,20 +104,33 @@ int main(int argc, char **argv)
     unsigned vc_results = ptr + offsetof(struct memory_map, results);
     memcpy(arm_map->code, qpu_code, code_words * sizeof(unsigned int));
     for (int i=0; i < NUM_QPUS; i++) {
-        arm_map->uniforms[i][0] = uniform_map(i);//uniform_val;
-        arm_map->uniforms[i][1] = vc_results + i * sizeof(unsigned) * 16;
-        arm_map->msg[i][0] = vc_uniforms + i * sizeof(unsigned) * 2;
+        arm_map->uniforms[i][0] = NUM_QPUS;
+        arm_map->uniforms[i][1] = i; // QPU instance (always same as qpu_num?!)
+        arm_map->uniforms[i][2] = vc_results + i * sizeof(unsigned) * 16; // Only used by QPU 0.
+        arm_map->msg[i][0] = vc_uniforms + i * sizeof(arm_map->uniforms[0]);
         arm_map->msg[i][1] = vc_code;
     }
 
     unsigned ret = execute_qpu(mb, NUM_QPUS, vc_msg, GPU_FFT_NO_FLUSH, GPU_FFT_TIMEOUT);
 
     // check the results!
-    printf("\nBranch not taken: id = 0\n    Branch taken: id > 0\n");
+    bool ok = 1;
+    printf("\nQPU return:\n");
+    printf("    ");
     for (int j=0; j < 16; j++) {
-        printf("Word %2d:\t\t%4u\n",
-                j+1, arm_map->results[0][j]);
+        printf("%4X ",j);
     }
+    printf("\n");
+    for (int i=0; i < NUM_QPUS; i++) {
+        printf("%2d: ", i);
+        for (int j=0; j < 16; j++) {
+            int t = arm_map->results[i][j];
+            ok &= ( t == i+j );
+            printf("%4d ", t);
+        }
+        printf("\n");
+    }
+    printf( "QPU output ok? %s.\n\n", ok?"Yes":"No");
 
     printf("Cleaning up.\n");
     unmapmem(arm_ptr, size);

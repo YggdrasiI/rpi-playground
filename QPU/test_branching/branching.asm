@@ -27,17 +27,19 @@ mov rb_first_uniform, unif
 ## Brancing
 
 ## 1. Relative branch without care of destination address.
-# Could be read as IF(NOT cond){
-# Lines between brr and jump target.
-# [...]
-# }JUMP_TARGET
+# Could be read as 
+# IF(NOT cond){
+#   Lines between brr and jump target.
+#   [...]
+# }
+# JUMP_TARGET
 #
 # Remember that branch instructions are executed 3 instructions delayed,
 # i.e. three further instructions are always executed.
 # 
 change_elem ra_taken_register, 0, 1
 mov.setf r0, elem_num        # 0, 1, 2, …
-brr.anyz -, r:1f 
+brr.anyz -, r:1f             # Any element zero at latest flag set (setf).
 nop # Three branch
 nop # delay slots.
 nop # Do not use second branch here.
@@ -50,6 +52,7 @@ nop # Do not use second branch here.
 nop
 
 
+#############################################################
 ## 2. Similar to example 1, but more compact 
 sub.setf -, 0, elem_num  # 0, -1, -2, …
 brr.anynn -, r:1f        # Any not negative
@@ -60,25 +63,29 @@ change_elem ra_taken_register, 1, 2
     # Next line only reached if branch not taken
     change_elem ra_taken_register, 1, 0
 
-# Same label as above. The 'f' flag at the branch let select this one.
+# Same label name as above. The 'f'-flag (follow) at the branch let
+# the compiler selects this one.
 # This is useful if a multiple used macro defines a label.
 :1
 
 
+#############################################################
 ## 3. Use destination register to store jump address for later usage.
 # Take care not to trap yourself into an infinite loop...
 #
 .set ra_address,     ra10
 
 # Store program counter for a label
-# As there is no condition the branch is always taken. Thus,
-# the fourth instruction after this branch will never reached 'linearly'.
 brr ra_address,      r:loop_head
 
 # Store number of repeats for the following while loop.
+nop
+nop
 mov r0, 3                # Loop counter
-nop
-nop
+
+# 'PC+4' points to the fourth instruction after the branch.
+nop # ra_address store absolute position of this instruction.
+
 
 :loop_head
 
@@ -100,6 +107,8 @@ nop
 #mov r0, ra_address
 #add.ifz ra_taken_register, ra_taken_register, r0
 
+
+#############################################################
 ## 4. If-Then-Else
 # This example uses three branch instrutions. Swap
 # then and else branch to reduce it on two.
@@ -129,6 +138,10 @@ change_elem ra_taken_register, 3, -4
 :end
 
 #############################################################
+## 5. ...
+
+#############################################################
+## Push debug variables and quit
 
 # Configure the VPM for writing
 # See vc4asm documentation and test_vpm_write for more details.

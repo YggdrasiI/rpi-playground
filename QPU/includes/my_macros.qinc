@@ -95,6 +95,38 @@
 	#or rb39, rb50, ra39
   read vw_wait
 .endm                                                                                    
+
 #############################################################
+## Get offset between label (=line number during compilation)
+# and absolute branching address for same instruction.
+#
+# Requires modded vc4asm, https://github.com/YggdrasiI/vc4asm
+# and is disabled as default. Define LDI_LABELS to enable.
+# macro
+#.set LDI_LABELS, 0
+
+.macro get_address_label_offset, out
+  .if LDI_LABELS
+    ldi out, r:1f  # Label index
+    brr r0, r:1f  # r0 holds absolute instruction address
+    nop 
+    nop
+    nop
+
+    :1
+    sub out, r0, out  # Offset of both
+  .endif
+.endm
+
+## Use above offset to gen brach targets
+.macro load_address, out, labelname, offset
+  .if LDI_LABELS
+    ldi r0, labelname
+    add out, r0, offset
+  .endif
+.endm
+
+
+
 #############################################################
 #############################################################

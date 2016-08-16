@@ -112,7 +112,7 @@ int main(int argc, char **argv)
     memcpy(arm_map->code, qpu_code, code_words * sizeof(unsigned int));
     for (int i=0; i < NUM_QPUS; i++) {
         arm_map->uniforms[i][0] = vc_results + i * sizeof(unsigned) * 16 * 4;
-        arm_map->msg[i][0] = vc_uniforms + i * sizeof(unsigned) * 2;
+        arm_map->msg[i][0] = vc_uniforms + i * sizeof(arm_map->uniforms[0]);
         arm_map->msg[i][1] = vc_code;
     }
 

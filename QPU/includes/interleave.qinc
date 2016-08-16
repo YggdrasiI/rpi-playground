@@ -1,0 +1,35 @@
+#############################################################
+## Interleave vectors x, y into a lower and upper halve l,u.
+# x = (x0, …, x15), y = (y0, …, y15)
+# l = (x0, y0, …, x7, y7), u = (x8, y8, …, x15, y15)
+#
+# - Need two temp registers.
+# - Input and output register could be the same.
+#
+
+.macro interleave, x_in, y_in, l_out, u_out, ra_tmp1, r_tmp2
+
+	mov r1, x_in ; mov ra_tmp1, 0
+	mov r2, y_in ; mov r_tmp2, 0
+
+	# 1. Upper halve
+	sub.setf r0, elem_num, 0
+	.rep i, 8
+		mov.ifz r_tmp2, r1 >> i
+		mov.ifz ra_tmp1, r2 >> i
+		sub.setf r0, r0, 2
+	.endr
+	mov r0, ra_tmp1>>1
+	add l_out, r_tmp2, r0
+
+	# 2. Upper halve
+	sub.setf r0, elem_num, 0
+	.rep i, 8
+		mov.ifz r_tmp2, r1 >> (8+i)
+		mov.ifz ra_tmp1, r2 >> (8+i)
+		sub.setf r0, r0, 2
+	.endr
+	mov r0, ra_tmp1>>1
+	add u_out, r_tmp2, r0
+
+.endm

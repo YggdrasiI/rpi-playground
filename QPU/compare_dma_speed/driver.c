@@ -118,7 +118,7 @@ int main(int argc, char **argv)
         arm_map->uniforms[i][0] = M;
         arm_map->uniforms[i][1] = units[0];
         arm_map->uniforms[i][2] = vc_results + i * sizeof(unsigned) * 16;
-        arm_map->msg[i][0] = vc_uniforms + i * sizeof(unsigned) * 2;
+        arm_map->msg[i][0] = vc_uniforms + i * sizeof(arm_map->uniforms[0]);
         arm_map->msg[i][1] = vc_code;
     }
 

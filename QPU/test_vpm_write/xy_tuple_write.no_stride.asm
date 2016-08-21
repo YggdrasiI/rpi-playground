@@ -7,8 +7,6 @@
 #   the vdw write. The horizontal write allows us to get an
 #   offset after each tuple.
 #
-# Note: (Unfinished, need interleaving of x,y values
-# in registers which seems no basic operation.)
 #############################################################
 ## Return address taken from first uniform
 .set ra_addr_out,     ra31

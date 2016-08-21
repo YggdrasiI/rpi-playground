@@ -2,7 +2,7 @@ include ../Makefile.includes
 # No ARM code, but stub to compile ffmpeg hevc assembler code with vc4asm.
 #
 PROJECT=hevc
-ASM=shader.qasm
+ASM=rpi_shader.qasm
 
 $(PROJECT): $(PROJECT).hex 
 	@echo "Done"
@@ -43,4 +43,4 @@ disasamble: $(PROJECT).hex
 	vc4dis -M -v -o $(ASM).disasambled  -x $<
 
 clean:
-	rm $(PROJECT).hex $(ASM).vc4
+	rm $$(ls $(PROJECT).* $(ASM).vc4)

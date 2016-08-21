@@ -1,0 +1,101 @@
+## More VPM setup helpers
+# ADDR - 7 bits for selection. Interpretation of bits depends on mode.
+#    Y - Vertical address 0-63. Only multiplies of 16 in vertical mode.
+#    X - Horizontal address 0-15. Only relevant in vertical modes
+#    B - Byte block 0-3 for 8 bit access
+#    H - Halve word block 0-1 for 16 bit access.
+#
+# Note: 32 bit functions defined in vc4.qinc
+
+# Horizontal, 16 bit, packed halve words
+# ADDR[7:0] = Y[5:0]H[0]
+.func h16p(y, h)
+  .assert !(y & ~0x3f)
+  .assert !(h & ~0x1)
+  0x900 | y << 1 | h
+.endf
+
+# Horizontal, 8 bit, packed bytes
+# ADDR[7:0] = Y[5:0]B[1:0]
+.func h8p(y, b)
+  .assert !(y & ~0x3f)
+  .assert !(b & ~0x3)
+  0x800 | y << 2 | b
+.endf
+
+# Vertical, 16 bit, packed halve words
+# ADDR[7:0] = Y[5:4]X[3:0]H[0]
+.func v16p(y, x, h)
+  .assert !(y & ~0x30)
+  .assert !(x & ~0xf)
+  .assert !(h & ~0x1)
+  0x100 | y << 1 | x << 1 | h
+.endf
+
+# Vertical, 8 bit, packed bytes
+# ADDR[7:0] = Y[5:4]X[3:0]B[1:0]
+.func v8p(y, x, b)
+  .assert !(y & ~0x30)
+  .assert !(x & ~0xf)
+  .assert !(b & ~0x3)
+  0x100 | y << 2 | x << 2 | b
+.endf
+
+# Horizontal, 16 bit, laned halve words
+# ADDR[7:0] = Y[5:0]H[0]
+.func h16l(y, h)
+	0x400 | h16p(y, h)
+.endf
+
+# Horizontal, 8 bit, laned bytes
+# ADDR[7:0] = Y[5:0]B[1:0]
+.func h8l(y, b)
+	0x400 | h8(y, b)
+.endf
+
+# Vertical, 16 bit, laned halve words
+# ADDR[7:0] = Y[5:4]X[3:0]H[0]
+.func v16l(y, x, h)
+  0x400 | v16p(y, x, h)
+.endf
+
+# Vertical, 8 bit, laned bytes
+# ADDR[7:0] = Y[5:4]X[3:0]B[1:0]
+.func v8p(y, x, b)
+  0x400 | v8p(y, x, b)
+.endf
+
+
+## More DMA setup helpers
+
+# For VPMVCD_WR_SETUP
+# ADDR[10:0] = Y[6:0]X[3:0] - Address of first 32 bit word in VPM
+# Dma setup uses not 8 but 11 bits for addresses. 
+.func dma_h8p(y, x, b)
+  .assert !(y & ~0x7f)
+  .assert !(x & ~0xf)
+  .assert !(b & ~0x3)
+	0x4000 | y << 7 | x << 3 | 0x4 | b
+.endf
+
+.func dma_h16p(y, x, h)
+  .assert !(y & ~0x7f)
+  .assert !(x & ~0xf)
+  .assert !(h & ~0x1)
+	0x4000 | y << 7 | x << 3 | 0x2 | h
+.endf
+
+.func dma_v8p(y, x, b)
+  .assert !(y & ~0x7f)
+  .assert !(x & ~0xf)
+  .assert !(b & ~0x3)
+	y << 7 | x << 3 | 0x4 | b
+.endf
+
+.func dma_v16p(y, x, h)
+  .assert !(y & ~0x7f)
+  .assert !(x & ~0xf)
+  .assert !(h & ~0x1)
+	y << 7 | x << 3 | 0x2 | h
+.endf
+

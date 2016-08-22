@@ -1,0 +1,28 @@
+#include "rpi_shader.h"
+
+#ifdef _MSC_VER
+   #include <stdint.h>
+   /* cast through uintptr_t to avoid warnings */
+   #define POINTER_TO_UINT(X) ((unsigned int)(uintptr_t)(X))
+#else
+   #define POINTER_TO_UINT(X) ((unsigned int)(X))
+#endif
+
+#ifdef __cplusplus
+extern "C" { /* the types are probably wrong... */
+#endif
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef _MSC_VER
+__declspec(align(8))
+#elif defined(__GNUC__)
+__attribute__((aligned(8)))
+#endif
+unsigned int rpi_shader[] = {
+${rpi_shader}
+};
+#ifdef __HIGHC__
+#pragma Align_to(8, rpi_shader)
+#endif

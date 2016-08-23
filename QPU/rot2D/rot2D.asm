@@ -37,7 +37,7 @@
 
 
 #############################################################
-## Pushes two texture request commands.
+## Push two texture request commands.
 # Assumes that the texture unit is already setuped.
 #     Pseudocode:
 #       gather_texture(cur_elem_idx.x) // 4 bytes

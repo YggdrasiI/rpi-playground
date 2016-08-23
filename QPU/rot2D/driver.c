@@ -9,7 +9,7 @@
 #include "mailbox.h"
 #include "qpu.h"
 
-#define NUM_QPUS        2
+#define NUM_QPUS        1
 #define MAX_CODE_SIZE   8192
 
 // Uniform stores:
@@ -193,10 +193,10 @@ int main(int argc, char **argv)
         arm_map->uniforms[i][uni_arg++] = *((unsigned int*)&rot_sin);
         arm_map->uniforms[i][uni_arg++] = *((unsigned int*)&rot_cos);
         arm_map->uniforms[i][uni_arg++] = NUM_ELEMENTS;
-        // Use output positions as input, too.
+        // Here, the input uses the same position as the output.
         arm_map->uniforms[i][uni_arg++] = vc_results + i * 16 * sizeof(unsigned);
         arm_map->uniforms[i][uni_arg++] = vc_results + (NUM_ELEMENTS + i * 16 )* sizeof(unsigned);
-        // Output pointers only for i=0 used
+        // Output pointers (only used by QPU 0)
         arm_map->uniforms[i][uni_arg++] = vc_results + i * 16 * sizeof(unsigned);
         arm_map->uniforms[i][uni_arg++] = vc_results + (NUM_ELEMENTS + i * 16 )* sizeof(unsigned);
         assert(uni_arg == NUM_UNIFORMS);

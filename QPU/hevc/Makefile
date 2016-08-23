@@ -4,7 +4,8 @@ include ../Makefile.includes
 PROJECT=hevc
 SHADER=rpi_shader
 ASM=$(SHADER).qasm
-VC4=$(HOME)/software/git/vc4asm/bin/vc4asm
+#VC4=$(HOME)/software/git/vc4asm/bin/vc4asm
+SHELL=/bin/bash -o pipefail
 
 $(PROJECT): with_header
 	@echo "Done"
@@ -56,5 +57,10 @@ $(PROJECT).bin: $(ASM).vc4 $(ASM)
 disasamble: $(PROJECT).hex
 	vc4dis -M -v -o $(ASM).disasambled  -x $<
 
+diff: hevc.c sources/rpi_shader.c
+	diff $(SHADER:=.h) sources/rpi_shader.h
+	diff <(cut -d' ' -f1,2,3,4,5 hevc.c) <( cut -d' ' -f1,2,3,4,5 sources/rpi_shader.c)
+
+
 clean:
-	rm $$(ls $(PROJECT).* $(ASM).vc4)
+	rm $$(ls $(SHADER:=.h) $(PROJECT).* $(ASM).vc4)

@@ -52,10 +52,10 @@ mov vw_setup, vpm_setup(1, 1, h32(0, 0))
 
 #############################################################
 ## Write into the VPM.
-mov rb48, ra1 # xy1 lower
-mov rb48, rb1 # xy1 upper
-mov rb48, ra2 # xy2 lower
-mov rb48, rb2 # xy2 upper
+mov vpm, ra1 # xy1 lower
+mov vpm, rb1 # xy1 upper
+mov vpm, ra2 # xy2 lower
+mov vpm, rb2 # xy2 upper
 
 #############################################################
 ## Geometry of VPM writing (xxxx^T=word):
@@ -107,7 +107,7 @@ mov vw_setup, vdw_setup_1(0)
 mov vw_addr, ra_addr_out
 
 # Wait for the DMA to complete
-or rb39, rb50, ra39
+or rb39, vw_wait, ra39
 
 #############################################################
 ## End programm

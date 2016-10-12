@@ -40,8 +40,9 @@
 ## Push two texture request commands.
 # Assumes that the texture unit is already setuped.
 #     Pseudocode:
-#       gather_texture(cur_elem_idx.x) // 4 bytes
-#       gather_texture(cur_elem_idx.y) // next 4 bytes
+#				pcur_elem = pfirst_elem + cur_elem_idx
+#       gather_texture(pcur_elem->x) // 4 bytes
+#       gather_texture(pcur_elem->y) // next 4 bytes
 #       cur_elem_idx = cur_elem_idx + stride
 #
 .macro read_lin, stride
@@ -104,7 +105,7 @@ add ra_addr_in, ra_addr_in, r0
 
 # Create VPM setup values. The vertex memory is splited into
 # two ranges with 32 rows. The second area can be filled with
-# data while the first will be DMA tranfered.
+# data while the first will be DMA transfered.
 vpm_qsetup_h_a ra_numQPU, ra_instQPU, ra_vpm_setup0, rb_vpm_setup1
 vdm_qsetup_h_a ra_numQPU, 4, ra_vdm_setup0, rb_vdm_setup1
 
@@ -128,13 +129,11 @@ mov rb_y2, r1
 
 
 # Made some calucations to negate content of four registers.
-mov r0, -1.0; mov r1, ra_x1
+mov r0, -1.0; mov r1, 0.0
 mov r2, ra_x2
 
-fsub ra_x1, ra_x1, r1 
-fsub ra_x2, ra_x2, r2 
-fsub ra_x1, ra_x1, r1; fmul rb_y1, rb_y1, r0
-fsub ra_x2, ra_x2, r2; fmul rb_y2, rb_y2, r0
+fsub ra_x1, r1, ra_x1; fmul rb_y1, rb_y1, r0
+fsub ra_x2, r1, ra_x2; fmul rb_y2, rb_y2, r0
 nop
 
 # Interleave x and y values
@@ -150,10 +149,10 @@ mov vw_setup, rb_vpm_setup1
 #############################################################
 ## Write into the VPM.
 
-mov rb48, ra_x1
-mov rb48, rb_y1
-mov rb48, ra_x2
-mov rb48, rb_y2
+mov vpm, ra_x1
+mov vpm, rb_y1
+mov vpm, ra_x2
+mov vpm, rb_y2
 
 #############################################################
 ## Setup the push of the VDW (virtual DMA writer).
@@ -163,10 +162,10 @@ mov vw_setup, rb_vdm_setup1
 
 #############################################################
 ## Initiate DMA write
-mov rb50, rb_addr_out
+mov vw_addr, rb_addr_out
 
 # Wait for the DMA to complete
-or rb39, rb50, ra39
+or rb39, vw_wait, ra39
 
 # Trigger interrupt
 exit 0

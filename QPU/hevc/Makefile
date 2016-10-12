@@ -21,7 +21,7 @@ $(PROJECT): with_header
 # - s/mov interrupt… : ; nop after ALU instruction not allowed(?)
 # - s/vpm_setup…     : vc4asm macro asserts positive first argument for VPMVCD_WR_SETUP,
 #                      even if this bit are unused in writing case.
-#                      This changes the binary...
+#                      Combination with '0xMASK & ' preserve final binary result.
 # - s/vdw_setup_0…   : vc4asm macro asserts positive arguments. Replaced token unset bits.
 #
 #   Optional
@@ -37,14 +37,16 @@ $(ASM).vc4: $(ASM)
 		$< > $<.vc4
 		#-e "s/::/:/" \
 
-# Variant for https://github.com/YggdrasiI/vc4asm Could generate header file, too.
+# Variant for https://github.com/YggdrasiI/vc4asm fork. Could generate
+# header file, rpi_shader.h, too.
 # First, assemble hex values and then fill them into an template file.
-# Moreover, a header with the ::name labes will be created.
+# Moreover, a header with the ::name labels will be created.
 #
 with_header: $(PROJECT).c
 $(PROJECT).c: $(ASM).vc4 $(ASM)
 	$(VC4) -C $(SHADER).hex -H $(SHADER:=.h) -V -v $(VC4_INCLUDES) $<
 	$(SHADER)=$$(cat "$(SHADER).hex") envsubst < sources/$(SHADER).c.template > $(PROJECT).c
+
 
 # Variant for unmodified vc4asm
 without_header: $(PROJECT).hex
@@ -57,10 +59,11 @@ $(PROJECT).bin: $(ASM).vc4 $(ASM)
 disasamble: $(PROJECT).hex
 	vc4dis -M -v -o $(ASM).disasambled  -x $<
 
+# Show differences to original code, but ignore comments after instructions
+# Note: The differences by different label ordering can be ignored.
 diff: hevc.c sources/rpi_shader.c
 	diff $(SHADER:=.h) sources/rpi_shader.h
 	diff <(cut -d' ' -f1,2,3,4,5 hevc.c) <( cut -d' ' -f1,2,3,4,5 sources/rpi_shader.c)
-
 
 clean:
 	rm $$(ls $(SHADER:=.h) $(PROJECT).* $(ASM).vc4)

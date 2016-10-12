@@ -51,10 +51,10 @@ mov vw_setup, vpm_setup(1, 16, v32(0, 0))
 
 #############################################################
 ## Write into the VPM.
-mov rb48, ra1 # x1
-mov rb48, ra2 # x2
-mov rb48, rb1 # y1
-mov rb48, rb2 # y2
+mov vpm, ra1 # x1
+mov vpm, ra2 # x2
+mov vpm, rb1 # y1
+mov vpm, rb2 # y2
 
 #############################################################
 ## Geometry of VPM writing (xxxx=word):

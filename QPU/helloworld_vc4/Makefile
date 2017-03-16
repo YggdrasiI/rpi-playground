@@ -9,7 +9,9 @@ $(PROJECT).bin: $(ASM)
 	$(VC4) -V -o $@ $(VC4_INCLUDES) $<
 
 $(PROJECT).hex: $(ASM)
-	$(VC4) -V -C $@ $(VC4_INCLUDES) $<
+	$(VC4) -v -V -C $@ $(VC4_INCLUDES) $<
+
+hex: $(PROJECT).hex
 
 clean:
 	rm -f $(PROJECT).bin $(PROJECT).hex $(PROJECT)

@@ -45,7 +45,7 @@ mov vw_setup, vpm_setup(1, 1, h32(0, 0))
 # Read args from right to left:
 #   - Start horizontal 32 bit block at (0,0)
 #   - Jump 1 block to right after writing of one block.
-#     This block would be below the current block.
+#     (This block would be below the current block because 32-bit blocks uses whole width.)
 #   - First argument affects bits which are marked as "unused"
 #     in the documentation. Meaning?!
 

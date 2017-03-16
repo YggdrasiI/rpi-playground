@@ -6,6 +6,7 @@
 #############################################################
 .set rb_first_uniform,         rb3
 .set ra_taken_register,        ra2
+.set ra_offset,                ra4
 #############################################################
 ## Change register at singe position.
 #  reg[index] = value
@@ -125,7 +126,7 @@ nop
 
 :then
 change_elem ra_taken_register, 3, 4
-nop         # Omit overlapping warning of .back
+nop         # Omits overlapping warning of .back
 
 # Shift branch up to use delay slots.
 .back 3
@@ -134,11 +135,135 @@ brr -, r:end
 
 :else
 change_elem ra_taken_register, 3, -4
-
 :end
 
+
 #############################################################
-## 5. ...
+## 5. Method call with jump back address
+# First branch stores absolute address of PC+4 in ra_address
+# and jump to :method.
+# At the end of :method, we jump back and continue with step 6.
+# (third jump.)
+
+brr ra_address, :method5
+nop
+nop
+nop
+
+:back_target5
+brr -, :step6
+nop
+nop
+nop
+
+:method5
+change_elem ra_taken_register, 4, 5
+bra -, ra_address          # return
+nop
+nop
+nop
+
+# Not reached if above code works...
+change_elem ra_taken_register, 4, -5
+
+
+:step6
+#############################################################
+## 6. Modification of 5. with only two brachings.
+# First branch stores absolute address of PC+4 in ra_address
+# and jump to :method.
+# At the end of :method, we jump back, but modify ra_address
+# by an offset of two labels.
+#
+# Requires modified vc4asm with 'mov :label' support.
+
+brr ra_address, :method6
+mov r0, (:step7-:back_target6)  # Evaluated at compile time
+nop
+nop
+
+:back_target6
+# Not required...
+# brr -, :step6
+# nop
+# nop
+# nop
+
+:method6
+add ra_address, ra_address, r0   # Change target to step7
+change_elem ra_taken_register, 5, 6
+bra -, ra_address          # return
+nop
+nop
+nop
+
+# Not reached if above code works...
+change_elem ra_taken_register, 5, -6
+
+
+:step7
+#############################################################
+## 7. ...
+# Repeat single command and decide, i.e. by the number 
+# of used QPU instances, how often the command should run.
+#
+# Approach can be used for loop unrolling.
+.set step7_N, 5
+mov ra20, -(step7_N*8)           # Each command is 8 byte width.
+nop
+brr -, :step7_add0, ra20   # add -5*8 to label
+mov r1, 2
+nop
+nop
+
+.rep i, 12
+    add r1, r1, 1
+.endr
+:step7_add0
+
+# r1 is 2 + step7_N*1
+change_elem ra_taken_register, 6, r1
+
+
+:step8
+#############################################################
+## 8. Show difference between absolute and relative addresses
+#
+# The macro get_address_label_offset evaluates the distance
+# between both braching variants.
+#
+
+# Enable 
+.set LDI_LABELS, 1
+
+# Get offset (constant value during run, but depends on memory layout)
+get_address_label_offset ra_offset
+nop # Wait till ra_offset is available
+
+bra -, :step8_set_value, ra_offset
+# or
+#brr-, :step8_set_value
+# jump to same position
+nop
+nop
+nop
+
+:step8_set_value
+    change_elem ra_taken_register, 7, 8
+    # No to next section
+    brr -, :step9
+    nop
+    nop
+    nop
+
+# Not reached
+change_elem ra_taken_register, 7, -8
+
+
+:step9
+#############################################################
+## 9. ...
+
 
 #############################################################
 ## Push debug variables and quit
